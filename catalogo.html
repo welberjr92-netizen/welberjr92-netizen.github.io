@@ -390,7 +390,7 @@ function compCard(it,f,L,P,best){
     <span class="flow"><span class="big">${fmt(f.l)}</span> <span class="u">L/min</span><br><span class="u">${fmt(f.l*0.06,1)} m³/h · ${fmt(f.pcm,1)} pcm</span></span>
     <span class="tag">${it.single?"vazão nominal":it.booster?"vazão de saída a "+fmt(P,1)+" bar":"a "+fmt(P,1)+" bar"}</span>
     <span class="chips">${chips.join("")}</span></summary>
-    <div class="det"><div class="bigph"><img src="${IMG[imgKey(it)]||""}" alt="Foto ${it.m}" loading="lazy"></div><p class="note" style="margin:0">Foto ilustrativa da linha (catálogo Puma).</p>${fx.html}<div class="tbl"><h3 style="margin:6px 0 0">Vazão por pressão</h3><table><thead><tr><th>Pressão</th><th>psi</th><th>L/min</th><th>m³/h</th><th>pcm</th></tr></thead><tbody>${rows}</tbody></table></div>
+    <div class="det"><div class="bigph"><img src="${IMG[imgKey(it)]||""}" alt="Foto ${it.m}" loading="lazy"></div><p class="note" style="margin:0">Foto ilustrativa da linha (catálogo Puma).</p>${fx.html}${pecasHtml(it)}<div class="tbl"><h3 style="margin:6px 0 0">Vazão por pressão</h3><table><thead><tr><th>Pressão</th><th>psi</th><th>L/min</th><th>m³/h</th><th>pcm</th></tr></thead><tbody>${rows}</tbody></table></div>
     <p class="info"><b>Dados do catálogo:</b> ${it.info}</p>${it.pts.length===2&&!it.single?'<p class="note">Catálogo informa só a faixa (mín.~máx.); valores intermediários são estimados em linha reta.</p>':""}</div></details>`;
 }
 function renderComps(L,P){
@@ -707,6 +707,19 @@ const MT_ITENS=[
   {c:"",n:"Kit correias",q:1,u:"kit",h:[6000,12000,18000],so:"correia"},
 ];
 // Máquinas de polia e correia (PSBR C, PS H) usam kit correias a cada 6.000 h no lugar da união elástica do acoplamento
+// Peças padrão de manutenção por modelo (lista Puma)
+const PK=(ar,sep,fo,oleo,asp,cor,corQ,adm,pmin,ret,rol,rolN,arObs)=>({ar:{c:ar,n:"Filtro de ar cartucho"+(arObs||"")},sep:{c:sep,n:"Filtro separador de ar e óleo"},oleoF:{c:fo,n:"Filtro de óleo"},oleo:{c:oleo,n:"Óleo semissintético Puma System 46"},asp:{c:asp,n:"Filtro de aspiração externo"},cor:{c:cor,n:"Correias ("+corQ+" un)",q:corQ},adm:{c:adm,n:"Kit reparo válvula de admissão"},pmin:{c:pmin,n:"Kit reparo válvula de pressão mínima"},ret:{c:ret,n:"Kit retentor + bucha + vedações"},rol:{c:rol,n:"Kit rolamentos da unidade "+rolN}});
+const KIT_A=PK("155.005","155.102","155.098","006.113","021.099","149.320",3,"148.132","148.136","134.051","147.137","PS15H / PS20H");
+const KIT_B=PK("162.002","155.102","155.103","006.113","021.131","149.343",4,"148.133","148.136","134.052","147.148","PS30H");
+const KIT_C=PK("155.035","155.008","155.103","006.114","021.133","149.320",6,"148.134","148.137","134.053","147.155","PS50H"," (155.064 acoplado)");
+const KIT_PECAS={PS15H:KIT_A,PS20H:KIT_A,PS30H:KIT_B,PS40H:KIT_B,PS50H:KIT_C,PS60H:KIT_C};
+const KIT_ORDEM=["ar","sep","oleoF","oleo","asp","cor","adm","pmin","ret","rol"];
+const MT_KIT={0:"ar",1:"oleoF",2:"sep",3:"oleo",4:"asp",6:"adm",9:"pmin",11:"ret",12:"rol",14:"cor"};
+const mtNome=(x,i,m)=>{const k=KIT_PECAS[m]&&MT_KIT[i];if(!k)return x.n;const p=KIT_PECAS[m][k];return k==="oleo"?p.n+" (balde 5 L)":p.n};
+function pecasHtml(it){
+  const k=KIT_PECAS[it.m];if(!k)return"";
+  return`<div class="ficha"><h3>Peças padrão de manutenção</h3><table><tbody>${KIT_ORDEM.map(x=>`<tr><td>${k[x].c}</td><td>${k[x].n}</td></tr>`).join("")}</tbody></table><p class="note" style="margin:4px 0 0">Lista Puma para ${it.m}. Veja na aba Manutenção em quais revisões cada peça é trocada.</p></div>`;
+}
 const mtCorreia=m=>{const it=C.find(c=>c.m===m);return !!(it&&/correia/i.test(ficha(it).trans||""))};
 const mtVale=(x,m)=>!x.so||(x.so==="correia")===mtCorreia(m);
 const MT_GRANDES=[9000,18000,21000];
@@ -732,7 +745,7 @@ function calcMan(m){
   const pr_=mtPrecos(m),hm=numd(mt.horas)*numd(mt.dias);
   const desl=num(mt.desl)||0;
   const ev=MT_H.map(h=>{
-    const itens=MT_ITENS.map((it,i)=>({...it,i,c:pr_[i].c,q:numd(pr_[i].q)||0,p:num(pr_[i].p)||0})).filter(it=>it.h.includes(h)&&mtVale(it,m));
+    const itens=MT_ITENS.map((it,i)=>({...it,n:mtNome(it,i,m),i,c:pr_[i].c,q:numd(pr_[i].q)||0,p:num(pr_[i].p)||0})).filter(it=>it.h.includes(h)&&mtVale(it,m));
     const pecas=itens.reduce((s,it)=>s+it.q*it.p,0);
     const sv=servDe(h);
     return{h,itens,pecas,serv:sv,desl,total:pecas+sv+desl,meses:hm>0?h/hm:null};
@@ -770,7 +783,7 @@ function renderMan(L,P){
   <div class="convbox"><h2>Peças e preços</h2>
    <p class="note" style="margin:0">${mtCorreia(m)?"<b>"+m+" é de polia e correia:</b> entra o kit correias a cada 6.000 h (sem união elástica). ":"<b>"+m+" é de acoplamento direto:</b> entra a união elástica na revisão de 21.000 h. "}Preencha o preço de cada peça do seu sistema. Óleo: preço e quantidade por balde de 5 L (ajuste a quantidade de baldes conforme a capacidade do compressor).</p>
    <div class="tbl"><table class="mtt"><thead><tr><th>Item</th><th>Preço un. (R$)</th><th>Qtd</th>${MT_H.map(x=>`<th>${fmt(x/1000)}k</th>`).join("")}</tr></thead><tbody>
-   ${MT_ITENS.map((x,i)=>!mtVale(x,m)?"":`<tr><td class="mtn">${x.n}</td>
+   ${MT_ITENS.map((x,i)=>!mtVale(x,m)?"":`<tr><td class="mtn">${mtNome(x,i,m)}</td>
      <td><input class="mi" data-i="${i}" data-k="p" value="${esc(r.pr[i].p)}" inputmode="decimal" placeholder="0,00" style="width:6.4rem"></td>
      <td><input class="mi" data-i="${i}" data-k="q" value="${esc(r.pr[i].q)}" inputmode="decimal" placeholder="${x.u}" style="width:3.6rem"></td>
      ${MT_H.map(hh=>`<td class="mtc">${x.h.includes(hh)?"●":""}</td>`).join("")}</tr>`).join("")}
