@@ -352,7 +352,7 @@ function flowAt(it,P){
   for(let i=1;i<pts.length;i++){if(P<pts[i][0]){const a=pts[i-1],b=pts[i],t=(P-a[0])/(b[0]-a[0]);return{l:a[2]+(b[2]-a[2])*t,pcm:a[1]+(b[1]-a[1])*t,kind:"approx"}}}
   return null;
 }
-const TABS=["Todos","Parafuso","Pistão","Isento de óleo","Booster","Laser","Tratamento","Ferramentas","Comparar","Economia","Manutenção","Proposta","Conversor"];
+const TABS=["Todos","Parafuso","Pistão","Isento de óleo","Booster","Laser","Tratamento","Ferramentas","Comparar","Economia","Manutenção","Peças","Proposta","Conversor"];
 let tab="Todos",showAll=false,sel=[],lastAns="",lastQ="";
 try{sel=JSON.parse(localStorage.getItem("cp_sel")||"[]").filter(m=>C.some(c=>c.m===m)).slice(0,3)}catch(e){}
 function saveSel(){try{localStorage.setItem("cp_sel",JSON.stringify(sel))}catch(e){}}
@@ -377,6 +377,7 @@ function compCard(it,f,L,P,best){
   const fx=ficha(it);
   const chips=[`<span class="chip dim">${it.tipo} · ${it.fam}</span>`,`<span class="chip dim">${fmt(it.cv,1)} cv · ${fmt(it.kw,2)} kW</span>`,fx.trans?`<span class="chip tr">${fx.trans.split(" · ")[0].replace(" (tensionador autocompensador)","")}</span>`:`<span class="chip dim">transmissão: ver ficha</span>`];
   if(best)chips.unshift(`<span class="chip hit">Menor que atende</span>`);
+  if(KIT_PECAS[it.m])chips.push(`<span class="chip tr">Peças de manutenção</span>`);
   if(margin!=null)chips.push(margin>=0?`<span class="chip ok">sobra ${fmt(margin)}%</span>`:`<span class="chip dim">falta ${fmt(-margin)}%</span>`);
   if(f.kind==="approx")chips.push(`<span class="chip dim">≈ interpolado entre pontos</span>`);
   if(f.kind==="max")chips.push(`<span class="chip dim">pressão máx. ${it.pts[0][0]} bar</span>`);
@@ -460,6 +461,7 @@ function render(){
   if(tab==="Manutenção"){out.innerHTML=renderMan(L,P);bindMan(L,P);return}
   if(tab==="Ferramentas"){out.innerHTML=renderFer();bindFer();return}
   if(tab==="Laser"){out.innerHTML=renderLaser(L);bindLaser();return}
+  if(tab==="Peças"){out.innerHTML=renderPecas();bindPecas();return}
   out.innerHTML=tab==="Tratamento"?renderTreat(L,P):tab==="Booster"?renderBkit()+renderComps(L,P):renderComps(L,P);
   if(tab==="Booster")bindBkit();
   const a=$("#all");if(a)a.addEventListener("change",()=>{showAll=a.checked;render()});
@@ -716,6 +718,24 @@ const KIT_PECAS={PS15H:KIT_A,PS20H:KIT_A,PS30H:KIT_B,PS40H:KIT_B,PS50H:KIT_C,PS6
 const KIT_ORDEM=["ar","sep","oleoF","oleo","asp","cor","adm","pmin","ret","rol"];
 const MT_KIT={0:"ar",1:"oleoF",2:"sep",3:"oleo",4:"asp",6:"adm",9:"pmin",11:"ret",12:"rol",14:"cor"};
 const mtNome=(x,i,m)=>{const k=KIT_PECAS[m]&&MT_KIT[i];if(!k)return x.n;const p=KIT_PECAS[m][k];return k==="oleo"?p.n+" (balde 5 L)":p.n};
+let pecaModelo=(()=>{try{return localStorage.getItem("cp_pecam")||"PS30H"}catch(e){return"PS30H"}})();
+function renderPecas(){
+  const ms=Object.keys(KIT_PECAS);
+  if(!KIT_PECAS[pecaModelo])pecaModelo=ms[0];
+  const k=KIT_PECAS[pecaModelo],it=C.find(c=>c.m===pecaModelo);
+  return`<div class="convbox"><h2>Peças padrão de manutenção</h2>
+   <p class="note" style="margin:0">Escolha o compressor para ver os códigos Puma das peças de manutenção.</p>
+   <div class="chips" style="margin-top:10px;flex-wrap:wrap">${ms.map(m=>`<button type="button" class="cmpbtn" data-pm="${m}" aria-pressed="${m===pecaModelo}">${m}</button>`).join("")}</div></div>
+  <div class="convbox"><h2>${pecaModelo}${it?` · ${fmt(it.cv,1)} cv`:""}</h2>
+   <div class="ficha"><table><tbody>${KIT_ORDEM.map(x=>`<tr><td style="white-space:nowrap">${k[x].c}</td><td>${k[x].n}</td></tr>`).join("")}</tbody></table></div>
+   <div class="row"><button type="button" class="btn" id="pc_copy">Copiar lista</button><span class="note" id="pc_st" style="margin:0"></span></div>
+   <p class="note" style="margin:0">Para ver em quais revisões cada peça é trocada e montar o custo, use a aba Manutenção.</p></div>
+  <p class="note">Por enquanto há listas para PS15H, PS20H, PS30H, PS40H, PS50H e PS60H.</p>`;
+}
+function bindPecas(){
+  document.querySelectorAll("[data-pm]").forEach(b=>b.onclick=()=>{pecaModelo=b.dataset.pm;try{localStorage.setItem("cp_pecam",pecaModelo)}catch(e){}render()});
+  const cp=$("#pc_copy");if(cp)cp.onclick=async()=>{const k=KIT_PECAS[pecaModelo];const t="*Peças de manutenção "+pecaModelo+"*\n"+KIT_ORDEM.map(x=>k[x].c+" · "+k[x].n).join("\n");try{await navigator.clipboard.writeText(t);$("#pc_st").textContent="Lista copiada."}catch(e){$("#pc_st").textContent="Não deu para copiar."}};
+}
 function pecasHtml(it){
   const k=KIT_PECAS[it.m];if(!k)return"";
   return`<div class="ficha"><h3>Peças padrão de manutenção</h3><table><tbody>${KIT_ORDEM.map(x=>`<tr><td>${k[x].c}</td><td>${k[x].n}</td></tr>`).join("")}</tbody></table><p class="note" style="margin:4px 0 0">Lista Puma para ${it.m}. Veja na aba Manutenção em quais revisões cada peça é trocada.</p></div>`;
